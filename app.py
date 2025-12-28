@@ -9,8 +9,8 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-OPENAI_API_KEY = os.getenv("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")
-OPENAI_MODEL = os.getenv("gpt-4o-mini")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 if not OPENAI_API_KEY:
     print("ERRO: OPENAI_API_KEY não configurada no ambiente!")
@@ -200,5 +200,5 @@ def consulta():
 # ============================================
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
