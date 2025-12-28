@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Consulta Holística - Tarologia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+    <div class="app-shell">
+        <header class="hero card">
+            <div>
+                <p class="eyebrow">Consulta Holística</p>
+                <h1>Tarologia simbólica guiada</h1>
+                <p class="subtitle">
+                    Caminhe por perguntas leves, defina quem você é e o que busca, e receba uma devolutiva simbólica
+                    feita por uma terapeuta holística treinada para acolher sem prometer certezas.
+                </p>
+            </div>
+            <div class="status" id="statusBadge">Conte um pouco sobre você.</div>
+        </header>
+
+        <main class="layout">
+            <section class="card wizard-panel">
+                <div class="progress">
+                    <div class="progress-bar">
+                        <div id="progressFill"></div>
+                    </div>
+                    <p id="progressLabel" class="progress-label">Passo 1 de 10</p>
+                </div>
+                <div id="stepContent" class="step-content"></div>
+                <p id="wizardError" class="helper error hidden"></p>
+            </section>
+        </main>
+    </div>
+
+    <div id="loaderOverlay" class="overlay hidden">
+        <div class="loader-card">
+            <div class="spinner"></div>
+            <p class="loader-title">Consultando a terapeuta holística...</p>
+            <p class="helper">Criando uma leitura simbólica personalizada para você.</p>
+        </div>
+    </div>
+
+    <div id="resultModal" class="modal hidden">
+        <div class="modal-content card">
+            <button id="modalClose" type="button" class="modal-close">&times;</button>
+            <p class="eyebrow">Resposta simbólica</p>
+            <h3>Mensagem da terapeuta</h3>
+            <div id="modalBody" class="modal-body"></div>
+            <div class="modal-actions">
+                <button id="modalRestart" type="button" class="primary-button">Iniciar nova consulta</button>
+                <button id="modalRealConsult" type="button" class="cta-real">Consultar taróloga real</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
