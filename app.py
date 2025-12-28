@@ -1,29 +1,54 @@
-﻿import os
+import os
 from datetime import date, datetime
 from flask import Flask, jsonify, render_template, request
-from dotenv import load_dotenv
 from openai import OpenAI
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-for candidate in ("env.local", ".env"):
-    candidate_path = os.path.join(BASE_DIR, candidate)
-    if os.path.exists(candidate_path):
-        load_dotenv(candidate_path, override=True)
-load_dotenv(override=False)
+# ============================================
+# Configuração básica
+# ============================================
 
 app = Flask(__name__)
-client = OpenAI()
 
-SYSTEM_PROMPT = """Você é uma terapeuta holística especializada em Tarologia simbólica. Você oferece acolhimento, metáforas e reflexões profundas, sempre deixando claro que não fornece previsões absolutas, diagnósticos nem conselhos legais. Sua linguagem é empática, humana e em português do Brasil. Incentive o autocuidado e evite gerar dependência emocional.\n\nRegras obrigatórias:\n- Conteúdo apenas para reflexão e entretenimento.\n- Não substitua terapia, medicina ou aconselhamento jurídico.\n- Utilize o tarô como metáfora simbólica e inspiradora.\n- Mantenha tom acolhedor, esperançoso e realista.\n- Nunca prometa certezas ou resultados garantidos.\n\nFormato fixo da resposta:\n1. Abertura acolhedora com 1 a 2 frases.\n2. Tiragem simbólica de 3 cartas. Para cada carta informar: nome, significado simbólico e conexão com o caso do usuário.\n3. Três perguntas de reflexão numeradas.\n4. Duas ações práticas simples para os próximos 7 dias.\n5. Encerramento curto com o lembrete: \"Use isso como reflexão, não como certeza.\"\n"""
+OPENAI_API_KEY = os.getenv("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")
+OPENAI_MODEL = os.getenv("gpt-4o-mini")
 
+if not OPENAI_API_KEY:
+    print("ERRO: OPENAI_API_KEY não configurada no ambiente!")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ============================================
+# Prompt do sistema
+# ============================================
+
+SYSTEM_PROMPT = """
+Você é uma terapeuta holística especializada em Tarologia simbólica. Você oferece acolhimento, metáforas e reflexões profundas, sempre deixando claro que não fornece previsões absolutas, diagnósticos nem conselhos legais. Sua linguagem é empática, humana e em português do Brasil. Incentive o autocuidado e evite gerar dependência emocional.
+
+Regras obrigatórias:
+- Conteúdo apenas para reflexão e entretenimento.
+- Não substitua terapia, medicina ou aconselhamento jurídico.
+- Utilize o tarô como metáfora simbólica e inspiradora.
+- Mantenha tom acolhedor, esperançoso e realista.
+- Nunca prometa certezas ou resultados garantidos.
+
+Formato fixo da resposta:
+1. Abertura acolhedora com 1 a 2 frases.
+2. Tiragem simbólica de 3 cartas. Para cada carta informar: nome, significado simbólico e conexão com o caso do usuário.
+3. Três perguntas de reflexão numeradas.
+4. Duas ações práticas simples para os próximos 7 dias.
+5. Encerramento curto com o lembrete: "Use isso como reflexão, não como certeza."
+"""
+
+# ============================================
+# Utilidades
+# ============================================
 
 def calculate_age(raw_date: str):
-    if not raw_date:
-        return None, None
     try:
         birth = datetime.strptime(raw_date, "%Y-%m-%d").date()
-    except ValueError:
+    except Exception:
         return None, None
+
     today = date.today()
     years = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
     return birth, years
@@ -58,10 +83,10 @@ def build_prompt(perfil: dict, contato: dict, dados: dict) -> str:
         f"Tema escolhido para a consulta: {tema}.",
         f"Dificuldade principal relatada: {desafio}.",
         f"Objetivo para os próximos dias: {objetivo}.",
-        "Contato fornecido (não mencione o email ou telefone na resposta, apenas considere que o retorno será enviado de forma privada). "
-        f"Email registrado: {email}. Telefone registrado: {telefone}.",
+        f"Contato fornecido (não mencionar na resposta): Email {email}, Telefone {telefone}.",
         "Produza a resposta seguindo estritamente o formato combinado.",
     ]
+
     return "\n".join(partes)
 
 
@@ -76,13 +101,15 @@ def extract_text_from_response(response) -> str:
     for item in getattr(response, "output", []) or []:
         for content in getattr(item, "content", []) or []:
             text = getattr(content, "text", None)
-            if not text:
-                continue
-            value = getattr(text, "value", None) or text
-            if value:
+            if text:
+                value = getattr(text, "value", None) or text
                 collected.append(str(value))
+
     return "\n".join(collected).strip()
 
+# ============================================
+# Rotas
+# ============================================
 
 @app.route("/")
 def index():
@@ -92,6 +119,7 @@ def index():
 @app.route("/api/consulta", methods=["POST"])
 def consulta():
     data = request.get_json(force=True) or {}
+
     perfil = data.get("perfil") or {}
     contato = data.get("contato") or {}
 
@@ -115,92 +143,61 @@ def consulta():
             ("telefone", telefone),
         ) if not value
     ]
+
     if missing:
-        return (
-            jsonify(
-                {
-                    "erro": "Dados incompletos.",
-                    "detalhes": f"Campos obrigatórios ausentes: {', '.join(missing)}.",
-                }
-            ),
-            400,
-        )
+        return jsonify({
+            "erro": "Dados incompletos",
+            "detalhes": f"Campos obrigatórios ausentes: {', '.join(missing)}"
+        }), 400
 
     nascimento, idade = calculate_age(nascimento_raw)
     if not nascimento or idade is None:
-        return (
-            jsonify(
-                {
-                    "erro": "Data de nascimento inválida.",
-                    "detalhes": "Use o formato AAAA-MM-DD.",
-                }
-            ),
-            400,
-        )
-    if idade < 18:
-        return (
-            jsonify(
-                {
-                    "erro": "Consulta não permitida.",
-                    "detalhes": "Somente maiores de 18 anos podem receber esta orientação.",
-                }
-            ),
-            400,
-        )
+        return jsonify({
+            "erro": "Data de nascimento inválida",
+            "detalhes": "Use o formato AAAA-MM-DD"
+        }), 400
 
-    perfil_atualizado = perfil.copy()
-    perfil_atualizado.update(
-        {
-            "nome": nome,
-            "genero": genero,
-            "data_nascimento": nascimento.isoformat(),
-            "idade": idade,
-            "foco_pessoal": perfil.get("foco_pessoal") or objetivo or "Não informado",
-        }
-    )
+    if idade < 18:
+        return jsonify({
+            "erro": "Consulta não permitida",
+            "detalhes": "Somente maiores de 18 anos"
+        }), 400
+
+    perfil["idade"] = idade
+    perfil["data_nascimento"] = nascimento.isoformat()
 
     prompt = build_prompt(
-        perfil_atualizado,
+        perfil,
         {"email": email, "telefone": telefone},
         {"tema": tema, "desafio": desafio, "objetivo": objetivo},
     )
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return (
-            jsonify(
-                {
-                    "erro": "Não foi possível gerar a resposta.",
-                    "detalhes": "OPENAI_API_KEY não configurada no ambiente.",
-                }
-            ),
-            500,
-        )
-
     try:
         response = client.responses.create(
-            model=model,
+            model=OPENAI_MODEL,
             input=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
         )
-        text = extract_text_from_response(response)
-        if not text:
-            raise ValueError("Resposta vazia do modelo.")
-        return jsonify({"mensagem": text})
-    except Exception as exc:  # noqa: BLE001
-        return (
-            jsonify(
-                {
-                    "erro": "Não foi possível gerar a resposta.",
-                    "detalhes": str(exc),
-                }
-            ),
-            500,
-        )
 
+        text = extract_text_from_response(response)
+
+        if not text:
+            raise Exception("Resposta vazia do modelo")
+
+        return jsonify({"mensagem": text})
+
+    except Exception as e:
+        print("OPENAI ERROR:", e)
+        return jsonify({
+            "erro": "Erro ao gerar resposta",
+            "detalhes": str(e)
+        }), 500
+
+# ============================================
+# Inicialização (Railway)
+# ============================================
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
