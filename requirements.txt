@@ -1,1 +1,3 @@
-flask\nopenai\npython-dotenv
+flask
+openai
+python-dotenv
